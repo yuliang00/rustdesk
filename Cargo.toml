@@ -1,7 +1,7 @@
 [package]
-name = "ppyddesk"
+name = "rustdesk"
 version = "1.3.3"
-authors = ["ppyddesk <info@ppyddesk.com>"]
+authors = ["rustdesk <info@rustdesk.com>"]
 edition = "2021"
 build= "build.rs"
 description = "PPydDesk Remote Desktop"
