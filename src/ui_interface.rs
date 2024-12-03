@@ -173,21 +173,36 @@ pub fn get_option<T: AsRef<str>>(key: T) -> String {
 }
 
 #[inline]
-#[cfg(target_os = "macos")]
 pub fn use_texture_render() -> bool {
-    cfg!(feature = "flutter") && LocalConfig::get_option(config::keys::OPTION_TEXTURE_RENDER) == "Y"
-}
+    #[cfg(target_os = "android")]
+    return false;
+    #[cfg(target_os = "ios")]
+    return false;
 
-#[inline]
-#[cfg(any(target_os = "windows", target_os = "linux"))]
-pub fn use_texture_render() -> bool {
-    cfg!(feature = "flutter") && LocalConfig::get_option(config::keys::OPTION_TEXTURE_RENDER) != "N"
-}
+    #[cfg(target_os = "macos")]
+    return cfg!(feature = "flutter")
+        && LocalConfig::get_option(config::keys::OPTION_TEXTURE_RENDER) == "Y";
 
-#[inline]
-#[cfg(any(target_os = "android", target_os = "ios"))]
-pub fn use_texture_render() -> bool {
-    false
+    #[cfg(target_os = "linux")]
+    return cfg!(feature = "flutter")
+        && LocalConfig::get_option(config::keys::OPTION_TEXTURE_RENDER) != "N";
+
+    #[cfg(target_os = "windows")]
+    {
+        if !cfg!(feature = "flutter") {
+            return false;
+        }
+        // https://learn.microsoft.com/en-us/windows/win32/sysinfo/targeting-your-application-at-windows-8-1
+        #[cfg(debug_assertions)]
+        let default_texture = true;
+        #[cfg(not(debug_assertions))]
+        let default_texture = crate::platform::is_win_10_or_greater();
+        if default_texture {
+            LocalConfig::get_option(config::keys::OPTION_TEXTURE_RENDER) != "N"
+        } else {
+            return LocalConfig::get_option(config::keys::OPTION_TEXTURE_RENDER) == "Y";
+        }
+    }
 }
 
 #[inline]
@@ -321,6 +336,8 @@ pub fn get_sound_inputs() -> Vec<String> {
         fn get_sound_inputs_() -> Vec<String> {
             let mut out = Vec::new();
             use cpal::traits::{DeviceTrait, HostTrait};
+            // Do not use `cpal::host_from_id(cpal::HostId::ScreenCaptureKit)` for feature = "screencapturekit"
+            // Because we explicitly handle the "System Sound" device.
             let host = cpal::default_host();
             if let Ok(devices) = host.devices() {
                 for device in devices {

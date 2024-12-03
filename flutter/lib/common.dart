@@ -1,6 +1,7 @@
 import 'dart:async';
 import 'dart:convert';
 import 'dart:math';
+import 'dart:io';
 
 import 'package:back_button_interceptor/back_button_interceptor.dart';
 import 'package:desktop_multi_window/desktop_multi_window.dart';
@@ -2245,7 +2246,10 @@ List<String>? urlLinkToCmdArgs(Uri uri) {
     }
   }
 
-  var key = uri.queryParameters["key"];
+  var queryParameters =
+      uri.queryParameters.map((k, v) => MapEntry(k.toLowerCase(), v));
+
+  var key = queryParameters["key"];
   if (id != null) {
     if (key != null) {
       id = "$id?key=$key";
@@ -2254,7 +2258,7 @@ List<String>? urlLinkToCmdArgs(Uri uri) {
 
   if (isMobile) {
     if (id != null) {
-      final forceRelay = uri.queryParameters["relay"] != null;
+      final forceRelay = queryParameters["relay"] != null;
       connect(Get.context!, id, forceRelay: forceRelay);
       return null;
     }
@@ -2264,7 +2268,7 @@ List<String>? urlLinkToCmdArgs(Uri uri) {
   if (command != null && id != null) {
     args.add(command);
     args.add(id);
-    var param = uri.queryParameters;
+    var param = queryParameters;
     String? password = param["password"];
     if (password != null) args.addAll(['--password', password]);
     String? switch_uuid = param["switch_uuid"];
@@ -2510,7 +2514,8 @@ Future<void> onActiveWindowChanged() async {
         // embedder.cc (2672): 'FlutterEngineSendPlatformMessage' returned 'kInvalidArguments'. Invalid engine handle.
         // 2024-11-11 11:41:11.565 RustDesk[90272:2567686] Failed to send message to Flutter engine on channel 'flutter/lifecycle' (2).
         // ```
-        periodic_immediate(Duration(milliseconds: 30), RdPlatformChannel.instance.terminate);
+        periodic_immediate(
+            Duration(milliseconds: 30), RdPlatformChannel.instance.terminate);
       }
     }
   }
@@ -2724,30 +2729,6 @@ Future<PermissionAuthorizeType> osxCanRecordAudio() async {
 
 Future<bool> osxRequestAudio() async {
   return await kMacOSPermChannel.invokeMethod("requestRecordAudio");
-}
-
-class DraggableNeverScrollableScrollPhysics extends ScrollPhysics {
-  /// Creates scroll physics that does not let the user scroll.
-  const DraggableNeverScrollableScrollPhysics({super.parent});
-
-  @override
-  DraggableNeverScrollableScrollPhysics applyTo(ScrollPhysics? ancestor) {
-    return DraggableNeverScrollableScrollPhysics(parent: buildParent(ancestor));
-  }
-
-  @override
-  bool shouldAcceptUserOffset(ScrollMetrics position) {
-    // TODO: find a better solution to check if the offset change is caused by the scrollbar.
-    // Workaround: when dragging with the scrollbar, it always triggers an [IdleScrollActivity].
-    if (position is ScrollPositionWithSingleContext) {
-      // ignore: invalid_use_of_protected_member, invalid_use_of_visible_for_testing_member
-      return position.activity is IdleScrollActivity;
-    }
-    return false;
-  }
-
-  @override
-  bool get allowImplicitScrolling => false;
 }
 
 Widget futureBuilder(
@@ -3478,6 +3459,35 @@ Widget buildPresetPasswordWarning() {
     },
   );
 }
+
+bool get isLinuxMateDesktop =>
+    isLinux &&
+    (Platform.environment['XDG_CURRENT_DESKTOP']?.toLowerCase() == 'mate' ||
+        Platform.environment['XDG_SESSION_DESKTOP']?.toLowerCase() == 'mate' ||
+        Platform.environment['DESKTOP_SESSION']?.toLowerCase() == 'mate');
+
+Map<String, dynamic>? _linuxOsDistro;
+
+String getLinuxOsDistroId() {
+  if (_linuxOsDistro == null) {
+    String osInfo = bind.getOsDistroInfo();
+    if (osInfo.isEmpty) {
+      _linuxOsDistro = {};
+    } else {
+      try {
+        _linuxOsDistro = jsonDecode(osInfo);
+      } catch (e) {
+        debugPrint('Failed to parse os info: $e');
+        // Don't call `bind.getOsDistroInfo()` again if failed to parse osInfo.
+        _linuxOsDistro = {};
+      }
+    }
+  }
+  return (_linuxOsDistro?['id'] ?? '') as String;
+}
+
+bool get isLinuxMint =>
+    getLinuxOsDistroId().toLowerCase().contains('linuxmint');
 
 // https://github.com/leanflutter/window_manager/blob/87dd7a50b4cb47a375b9fc697f05e56eea0a2ab3/lib/src/widgets/virtual_window_frame.dart#L44
 Widget buildVirtualWindowFrame(BuildContext context, Widget child) {
